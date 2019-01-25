@@ -6,7 +6,7 @@ using namespace std;
 
 struct CharFreqency
 {
-    char letter = '\0';
+    unsigned char letter = '\0';
     unsigned long freq = 0;
     weak_ptr<CharFreqency> up;
     shared_ptr<CharFreqency> left = nullptr;

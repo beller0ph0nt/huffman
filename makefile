@@ -1,5 +1,5 @@
 CC = g++
-CFLAGS = -g -Wall -std=c++14
+CFLAGS = -ggdb -Wall -std=c++14
 
 .PHONY: all clean
 

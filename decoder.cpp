@@ -17,7 +17,7 @@ void Decode(string input_filename, string output_filename)
 {
     try
     {
-        cout << "decoding..." << endl;
+        cout << "read data" << endl;
         ifstream file(input_filename, ios::ate | ios::binary);
         streampos fsize = file.tellg();
         file.close();
@@ -53,10 +53,12 @@ void Decode(string input_filename, string output_filename)
             throw new exception();
         }
 
+        cout << "build huffman tree" << endl;
         list<shared_ptr<CharFreqency>> leafs;
         shared_ptr<CharFreqency> root = nullptr;
         BuildHaffmanTree(nodes, leafs, root);
 
+        cout << "decoding..." << endl;
         shared_ptr<CharFreqency> cur_node = root;
         unsigned long byte_offset = 0;
         char bit_offset = 7;
@@ -90,6 +92,7 @@ void Decode(string input_filename, string output_filename)
             bit_counter--;
         }
 
+        cout << "write decoded data" << endl;
         ofstream output(output_filename, ios::binary);
         for (auto c : decode_buffer)
             output << c;

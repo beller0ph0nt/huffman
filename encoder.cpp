@@ -13,14 +13,13 @@
 
 using namespace std;
 
-const int LETTERS_COUNT = 255;
+const int LETTERS_COUNT = 256;
 
 void Encode(string input_filename, string output_filename)
 {
     try
     {
-        cout << "encoding..." << endl;
-        // reading data
+        cout << "read data" << endl;
         ifstream input(input_filename, ios::binary);
         vector<unsigned char> buffer(istreambuf_iterator<char>(input), {});
         input.close();
@@ -31,27 +30,31 @@ void Encode(string input_filename, string output_filename)
             throw new exception();
         }
 
-        // calc symbols statistics
+        cout << "calc symbols statistics" << endl;
         array<CharFreqency, LETTERS_COUNT> letters;
         for_each(begin(buffer), end(buffer), [&](unsigned char c) { letters[c].freq++; });
 
-        // build tree nodes based on statistics
+        cout << "build tree nodes based on statistics" << endl;
         list<shared_ptr<CharFreqency>> nodes;
-        for (unsigned char i = 0; i < letters.size(); i++)
+        for (unsigned char i = 0; ; i++)
         {
             if (letters[i].freq > 0)
             {
                 letters[i].letter = i;
                 nodes.emplace_back(make_shared<CharFreqency>(letters[i]));
             }
+
+            if (i == 255)
+                break;
         }
 
+        cout << "build huffman tree" << endl;
         list<shared_ptr<CharFreqency>> leafs;
         shared_ptr<CharFreqency> root = nullptr;
         BuildHaffmanTree(nodes, leafs, root);
 
-        // fill code table
-        unordered_map<char, CodeInfo> code_table;
+        cout << "fill code table" << endl;
+        unordered_map<unsigned char, CodeInfo> code_table;
         for (auto e : leafs)
         {
             unsigned char key = 0;
@@ -65,7 +68,7 @@ void Encode(string input_filename, string output_filename)
             code_table.emplace(e->letter, code);
         }
 
-        // coding
+        cout << "coding..." << endl;
         vector<unsigned char> encode_buffer(buffer.size(), 0);
         unsigned long bit_counter = 0;
         unsigned long byte_offset = 0;
@@ -95,12 +98,12 @@ void Encode(string input_filename, string output_filename)
             }
             else
             {
-                cerr << "error: char not in map" << endl;
+                cerr << "error: char \'" << c << "\' (" << static_cast<int>(c) << ") not in map" << endl;
                 throw new exception();
             }
         }
 
-        // write header and encoded data
+        cout << "write header and encoded data" << endl;
         ofstream output(output_filename, ios::binary);
         output.write(reinterpret_cast<char*>(&bit_counter), sizeof(bit_counter));
 
