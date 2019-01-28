@@ -1,13 +1,15 @@
-#include <iostream>
-#include <fstream>
-#include <iterator>
-#include <array>
-#include <vector>
 #include <algorithm>
-#include <list>
-#include <unordered_map>
-#include <string>
+#include <array>
+#include <cstdio>
 #include <exception>
+#include <fstream>
+#include <iostream>
+#include <iterator>
+#include <list>
+#include <vector>
+#include <string>
+#include <streambuf>
+#include <unordered_map>
 
 #include "common.h"
 
@@ -19,20 +21,13 @@ void Encode(string input_filename, string output_filename)
 {
     try
     {
-        cout << "read data" << endl;
-        ifstream input(input_filename, ios::binary);
-        vector<unsigned char> buffer(istreambuf_iterator<char>(input), {});
-        input.close();
-
-        if (buffer.size() == 0)
-        {
-            cerr << "error: input file is empty" << endl;
-            throw new exception();
-        }
-
-        cout << "calc symbols statistics" << endl;
+        cout << "read data and calc symbols statistics" << endl;
+        ifstream in(input_filename, ios::binary);
         array<CharFreqency, LETTERS_COUNT> letters;
-        for_each(begin(buffer), end(buffer), [&](unsigned char c) { letters[c].freq++; });
+        for_each(istreambuf_iterator<char>(in),
+                 istreambuf_iterator<char>(),
+                 [&](unsigned char c) { letters[c].freq++; });
+        in.close();
 
         cout << "build tree nodes based on statistics" << endl;
         list<shared_ptr<CharFreqency>> nodes;
@@ -59,7 +54,9 @@ void Encode(string input_filename, string output_filename)
         {
             unsigned char key = 0;
             char offset = 0;
-            for (auto cur_node = e; cur_node->up.lock() != nullptr; cur_node = cur_node->up.lock(), offset++)
+            for (auto cur_node = e;
+                 cur_node->up.lock() != nullptr;
+                 cur_node = cur_node->up.lock(), offset++)
                 if (cur_node->up.lock()->left == cur_node)
                     key |= (1 << offset);
 
@@ -69,12 +66,24 @@ void Encode(string input_filename, string output_filename)
         }
 
         cout << "coding..." << endl;
-        vector<unsigned char> encode_buffer(buffer.size(), 0);
+        ifstream input(input_filename, ios::binary);
+        input.seekg(0);
+        string tmp_filename = output_filename + ".tmp";
+        ofstream tmp_output(tmp_filename, ios::binary);
+
+        const unsigned long encode_buf_size = 5'210'000;
+        vector<unsigned char> encode_buffer(encode_buf_size);
         unsigned long bit_counter = 0;
         unsigned long byte_offset = 0;
         char bit_offset = 7;
-        for (auto c : buffer)
+
+        bool is_encoded = false;
+
+        istreambuf_iterator<char> bos(input);
+        istreambuf_iterator<char> eos;
+        for (; bos != eos; bos++)
         {
+            unsigned char c = *bos;
             auto it = code_table.find(c);
             if (it != code_table.end())
             {
@@ -89,8 +98,16 @@ void Encode(string input_filename, string output_filename)
                     bit_offset--;
                     if (bit_offset < 0)
                     {
+                        is_encoded = true;
                         bit_offset = 7;
                         byte_offset++;
+                        if (byte_offset == encode_buf_size)
+                        {
+                            tmp_output.write(reinterpret_cast<char*>(&encode_buffer[0]),
+                                             encode_buf_size);
+                            byte_offset = 0;
+                            is_encoded = false;
+                        }
                     }
 
                     ci.offset--;
@@ -102,6 +119,12 @@ void Encode(string input_filename, string output_filename)
                 throw new exception();
             }
         }
+
+        if (is_encoded)
+            tmp_output.write(reinterpret_cast<char*>(&encode_buffer[0]), byte_offset);
+
+        tmp_output.close();
+        input.close();
 
         cout << "write header and encoded data" << endl;
         ofstream output(output_filename, ios::binary);
@@ -115,9 +138,14 @@ void Encode(string input_filename, string output_filename)
             output.write(reinterpret_cast<char*>(&(leaf->freq)), sizeof(leaf->freq));
         }
 
-        for (unsigned long i = 0; i <= byte_offset; i++)
-            output.write(reinterpret_cast<char*>(&encode_buffer[i]), sizeof(encode_buffer[i]));
+        ifstream tmp_input(tmp_filename, ios::binary);
+        copy(istreambuf_iterator<char>(tmp_input),
+             istreambuf_iterator<char>(),
+             ostreambuf_iterator<char>(output));
+        tmp_input.close();
         output.close();
+
+        remove(tmp_filename.c_str());
     }
     catch (exception& ex)
     {

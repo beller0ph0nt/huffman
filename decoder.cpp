@@ -44,15 +44,6 @@ void Decode(string input_filename, string output_filename)
             nodes.emplace_back(cf);
         }
 
-        vector<unsigned char> ecode_buffer(istreambuf_iterator<char>(in), {});
-        in.close();
-
-        if (ecode_buffer.size() * 8 < bit_counter)
-        {
-            cerr << "error: incorrect input file header structure" << endl;
-            throw new exception();
-        }
-
         cout << "build huffman tree" << endl;
         list<shared_ptr<CharFreqency>> leafs;
         shared_ptr<CharFreqency> root = nullptr;
@@ -60,12 +51,24 @@ void Decode(string input_filename, string output_filename)
 
         cout << "decoding..." << endl;
         shared_ptr<CharFreqency> cur_node = root;
-        unsigned long byte_offset = 0;
+
+        const size_t encode_buf_size = 5'120'000;
+        vector<char> encode_buffer(encode_buf_size);
+        in.read(&encode_buffer[0], encode_buf_size);
         char bit_offset = 7;
-        list<char> decode_buffer;
+        unsigned long byte_offset = 0;
+
+        const size_t decode_buf_size = 5'120'000;
+        vector<char> decode_buffer(decode_buf_size);
+        unsigned long i = 0;
+
+        ofstream output(output_filename, ios::binary);
+
+        bool is_decoded = false;
+
         while (bit_counter > 0)
         {
-            if ((ecode_buffer[byte_offset] & (1 << bit_offset)) != 0)
+            if ((encode_buffer[byte_offset] & (1 << bit_offset)) != 0)
             {
                 if (cur_node->left != nullptr)
                     cur_node = cur_node->left;
@@ -78,7 +81,15 @@ void Decode(string input_filename, string output_filename)
 
             if (cur_node->left == nullptr && cur_node->right == nullptr)
             {
-                decode_buffer.emplace_back(cur_node->letter);
+                decode_buffer[i] = cur_node->letter;
+                i++;
+                is_decoded = true;
+                if (i == decode_buf_size)
+                {
+                    output.write(&decode_buffer[0], decode_buf_size);
+                    i = 0;
+                    is_decoded = false;
+                }
                 cur_node = root;
             }
 
@@ -87,16 +98,21 @@ void Decode(string input_filename, string output_filename)
             {
                 bit_offset = 7;
                 byte_offset++;
+                if (byte_offset == encode_buf_size)
+                {
+                    in.read(&encode_buffer[0], encode_buf_size);
+                    byte_offset = 0;
+                }
             }
 
             bit_counter--;
         }
 
-        cout << "write decoded data" << endl;
-        ofstream output(output_filename, ios::binary);
-        for (auto c : decode_buffer)
-            output << c;
+        if (is_decoded)
+            output.write(&decode_buffer[0], i);
+
         output.close();
+        in.close();
     }
     catch (exception& ex)
     {

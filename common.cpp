@@ -14,7 +14,7 @@ void help(char* app)
     cerr << "   " << app << " input_filename output_filename" << endl;
 }
 
-void BuildHaffmanTree(list<shared_ptr<CharFreqency>>& nodes, 
+void BuildHaffmanTree(list<shared_ptr<CharFreqency>>& nodes,
                       list<shared_ptr<CharFreqency>>& leafs,
                       shared_ptr<CharFreqency>& root)
 {
